@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <!-- 宣告網頁字元集為 UTF-8 繁體中文支援 -->
+    <meta charset="UTF-8">
+    <!-- 設定響應式視埠 (Viewport)，使遊戲能適應行動裝置與各類螢幕尺寸 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 網頁標題 -->
+    <title>Frutiger Aero osu! 音樂節奏遊戲</title>
+    <!-- 引入 Tailwind CSS 庫以進行快速且彈性的 UI 佈局 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 FontAwesome 圖示庫，用於選單與按鈕圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* 引入 Inter 與 Segoe UI 等現代清爽無襯線字型 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+        /* -------------------------------------------------------------
+           全局基本樣式設定
+           ------------------------------------------------------------- */
+        * {
+            box-sizing: border-box; /* 確保邊框與內襯計入元素總寬高 */
+            user-select: none;     /* 全局禁止文字選取，避免遊戲打擊時誤選文字 */
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* 隱藏捲軸，維持全螢幕沉浸感 */
+            background: #0284c7; /* 預設背景底色：蔚藍色 */
+        }
+
+        /* -------------------------------------------------------------
+           Frutiger Aero 玻璃擬態 (Glassmorphism) 與光澤 Core 樣式
+           ------------------------------------------------------------- */
+        /* 淺色半透明玻璃面板 */
+        .aero-glass {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.18) 100%);
+            backdrop-filter: blur(18px);          /* 背景高斯模糊 */
+            -webkit-backdrop-filter: blur(18px);
+            border: 1.5px solid rgba(255, 255, 255, 0.75); /* 高光半透明邊框 */
+            box-shadow: 
+                0 20px 40px rgba(0, 40, 80, 0.25),         /* 外部深色柔和陰影 */
+                inset 0 2px 4px rgba(255, 255, 255, 0.95), /* 頂部立體白色高光 */
+                inset 0 -2px 6px rgba(0, 100, 200, 0.25);  /* 底部淡藍沉積反光 */
+            border-radius: 24px;
+        }
+
+        /* 水晶高光立體按鈕 */
+        .aero-btn {
+            /* 多重分段分色漸層，營造 2000 年代經典的玻璃水晶凸凸感 */
+            background: linear-gradient(180deg, 
+                rgba(255, 255, 255, 0.98) 0%, 
+                rgba(220, 245, 255, 0.85) 48%, 
+                rgba(56, 189, 248, 0.92) 50%, 
+                rgba(2, 132, 199, 0.98) 100%);
+            border: 1.5px solid rgba(255, 255, 255, 0.85);
+            box-shadow: 
+                0 6px 15px rgba(0, 70, 150, 0.35),
+                inset 0 2px 2px rgba(255, 255, 255, 1),
+                inset 0 -2px 4px rgba(0, 50, 120, 0.4);
+            border-radius: 50px;
+            color: #03396c;
+            font-weight: 800;
+            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        /* 按鈕懸停效果：向上浮動與發光 */
+        .aero-btn:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 
+                0 10px 25px rgba(0, 120, 230, 0.5),
+                inset 0 2px 4px rgba(255, 255, 255, 1),
+                inset 0 -2px 4px rgba(0, 50, 120, 0.4);
+            filter: brightness(1.1);
+        }
+
+        /* 按鈕按下效果：下沉縮小 */
+        .aero-btn:active {
+            transform: translateY(1px) scale(0.98);
+            box-shadow: 
+                0 3px 8px rgba(0, 70, 150, 0.3),
+                inset 0 1px 3px rgba(0, 40, 90, 0.6);
+        }
+
+        /* 亮綠色水晶按鈕 (用於開始遊戲) */
+        .aero-btn-green {
+            background: linear-gradient(180deg, 
+                rgba(255, 255, 255, 0.98) 0%, 
+                rgba(220, 255, 230, 0.85) 48%, 
+                rgba(74, 222, 128, 0.92) 50%, 
+                rgba(22, 163, 74, 0.98) 100%);
+            color: #064e3b;
+        }
+
+        /* 標題浮雕與藍色外發光效果 */
+        .aero-text-glow {
+            color: #ffffff;
+            text-shadow: 
+                0 2px 4px rgba(0, 60, 120, 0.6),
+                0 0 20px rgba(56, 189, 248, 0.8),
+                0 0 40px rgba(255, 255, 255, 0.6);
+        }
+
+        /* -------------------------------------------------------------
+           畫布 (Canvas) 層級與滿版定位設定
+           ------------------------------------------------------------- */
+        /* 背景白天極光畫布 */
+        #bg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* 最底層背景 */
+        }
+
+        /* 遊戲主要音符打擊畫布 */
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10; /* 位於背景之上，UI 之下 */
+        }
+
+        /* UI 面板圖層設定 */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20; /* 位於最頂層 */
+            pointer-events: none; /* 預設不擋住畫布點擊 */
+        }
+
+        /* 讓選單內部可進行點擊操作 */
+        .interactive-ui {
+            pointer-events: auto;
+        }
+
+        /* 底部綠意盎然草地流光裝飾條 */
+        .aero-grass-footer {
+            position: absolute;
+            bottom: -20px;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(0deg, rgba(16, 185, 129, 0.8) 0%, rgba(52, 211, 153, 0.4) 60%, rgba(255, 255, 255, 0) 100%);
+            backdrop-filter: blur(4px);
+            border-top: 2px solid rgba(255, 255, 255, 0.5);
+            z-index: 2;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="relative flex items-center justify-center w-full h-full">
+
+    <!-- 1. 白天背景畫布與草地光學藝術層 -->
+    <canvas id="bg-canvas"></canvas>
+    <div class="aero-grass-footer"></div>
+
+    <!-- 2. 音符打擊畫布 (Hit Circle Canvas) -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- 3. 遊戲進行中的 HUD 數據面板 UI 圖層 -->
+    <div class="ui-layer flex flex-col justify-between p-6">
+
+        <!-- 頂部 HUD (血條、分數、準確率) -->
+        <div id="hud" class="w-full max-w-6xl mx-auto flex items-center justify-between transition-opacity duration-500 opacity-0">
+            <!-- HP 血條容器 -->
+            <div class="w-1/3 flex items-center gap-3 aero-glass p-3 px-5">
+                <!-- 紅色心形圖示 -->
+                <i class="fa-solid fa-heart text-red-500 text-xl animate-pulse"></i>
+                <!-- 血條外框 -->
+                <div class="w-full bg-blue-950/40 h-5 rounded-full overflow-hidden p-0.5 border border-white/60">
+                    <!-- 血條填充量 (動態增減) -->
+                    <div id="hp-bar" class="h-full bg-gradient-to-r from-emerald-400 via-sky-300 to-cyan-400 rounded-full transition-all duration-200" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- 分數與準確率顯示面板 -->
+            <div class="flex items-center gap-6 aero-glass px-8 py-3">
+                <!-- 分數顯示區域 -->
+                <div class="text-center">
+                    <div class="text-xs font-semibold text-blue-900 tracking-wider">SCORE (分數)</div>
+                    <div id="score-text" class="text-3xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] tracking-wider">0000000</div>
+                </div>
+                <!-- 分隔線 -->
+                <div class="h-8 w-px bg-white/40"></div>
+                <!-- 準確率顯示區域 -->
+                <div class="text-center">
+                    <div class="text-xs font-semibold text-blue-900 tracking-wider">ACCURACY (準確率)</div>
+                    <div id="acc-text" class="text-2xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">100.00%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 畫面左下角：連擊數 (Combo) 提示 -->
+        <div id="combo-container" class="absolute left-10 bottom-12 transition-opacity duration-300 opacity-0 pointer-events-none">
+            <div id="combo-text" class="text-6xl font-black italic text-cyan-200 drop-shadow-[0_4px_8px_rgba(0,80,160,0.8)] tracking-tighter">0x</div>
+            <div class="text-xs font-bold text-white tracking-widest uppercase opacity-80">COMBO</div>
+        </div>
+
+        <!-- 畫面右下角：鍵盤 K1 / K2 (Z/X) 按鍵觸發提示器 -->
+        <div id="key-indicators" class="absolute right-10 bottom-12 flex gap-3 transition-opacity duration-300 opacity-0">
+            <div id="key-z" class="w-12 h-12 aero-glass flex items-center justify-center text-white font-extrabold text-xl shadow-lg border-2 border-white/80 transition-transform">Z</div>
+            <div id="key-x" class="w-12 h-12 aero-glass flex items-center justify-center text-white font-extrabold text-xl shadow-lg border-2 border-white/80 transition-transform">X</div>
+        </div>
+    </div>
+
+    <!-- 4. 主選單畫面 (Start Screen) -->
+    <div id="start-menu" class="ui-layer interactive-ui flex items-center justify-center p-4">
+        <div class="aero-glass p-8 md:p-12 rounded-3xl max-w-xl w-full text-center flex flex-col items-center gap-6 relative overflow-hidden">
+            <!-- 裝飾用內部模糊日光亮塊 -->
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-cyan-300/40 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- 遊戲主標題 -->
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-compact-disc text-sky-400 text-4xl animate-spin" style="animation-duration: 8s;"></i>
+                <h1 class="text-5xl font-black tracking-wide aero-text-glow">osu! Aero</h1>
+            </div>
+            
+            <!-- 遊戲介紹說明 -->
+            <p class="text-sky-900 font-medium text-sm md:text-base leading-relaxed">
+                體驗 2000 年代經典 Frutiger Aero 水滴極光風格與節奏點擊樂趣！<br>
+                滑鼠移動至圈圈處點擊，或搭配鍵盤 <span class="bg-white/60 px-2 py-0.5 rounded font-bold text-sky-900">Z</span> / <span class="bg-white/60 px-2 py-0.5 rounded font-bold text-sky-900">X</span> 鍵進行擊打。
+            </p>
+
+            <!-- 歌曲選單下拉區 -->
+            <div class="w-full text-left">
+                <label class="block text-xs font-bold text-blue-900 mb-2 uppercase tracking-wider"><i class="fa-solid fa-music mr-1"></i> 選擇樂曲 (Select Track)</label>
+                <select id="song-select" class="w-full bg-white/70 border border-white/90 text-sky-950 font-semibold p-3 rounded-xl backdrop-blur-md outline-none focus:ring-2 focus:ring-sky-400 shadow-inner">
+                    <option value="breezy">Aero Breeze - 輕快微風 (BPM 120 - 簡單)</option>
+                    <option value="cyber">Aquatic Cyber - 水藍電音 (BPM 140 - 普通)</option>
+                    <option value="overdrive">Frutiger Rush - 極限衝刺 (BPM 175 - 困難)</option>
+                </select>
+            </div>
+
+            <!-- 開始遊戲按鈕 -->
+            <button id="start-btn" class="aero-btn aero-btn-green text-xl px-10 py-4 w-full mt-2 flex items-center justify-center gap-3">
+                <i class="fa-solid fa-play"></i> 開始遊戲 (START)
+            </button>
+        </div>
+    </div>
+
+    <!-- 5. 遊戲結算畫面 (Result Screen) -->
+    <div id="result-menu" class="ui-layer interactive-ui hidden flex items-center justify-center p-4">
+        <div class="aero-glass p-8 md:p-10 rounded-3xl max-w-lg w-full text-center flex flex-col items-center gap-6 relative">
+            <h2 class="text-4xl font-extrabold text-white aero-text-glow">STAGE CLEAR!</h2>
+
+            <!-- 成績評價等級大字 (Grade Rank S, A, B, C, F) -->
+            <div id="rank-display" class="text-8xl font-black drop-shadow-[0_10px_20px_rgba(0,100,200,0.5)] my-2 text-yellow-300">S</div>
+
+            <!-- 詳細成績數據統計表格 -->
+            <div class="w-full grid grid-cols-2 gap-4 text-left font-semibold text-blue-950 bg-white/40 p-4 rounded-2xl border border-white/60">
+                <div>總分數 (Score): <span id="res-score" class="float-right font-bold text-white">0</span></div>
+                <div>準確率 (Acc): <span id="res-acc" class="float-right font-bold text-white">100%</span></div>
+                <div>最大連擊 (Combo): <span id="res-combo" class="float-right font-bold text-white">0x</span></div>
+                <div> Perfect 300: <span id="res-300" class="float-right font-bold text-emerald-300">0</span></div>
+                <div> Great 100: <span id="res-100" class="float-right font-bold text-cyan-200">0</span></div>
+                <div> Miss 0: <span id="res-miss" class="float-right font-bold text-red-300">0</span></div>
+            </div>
+
+            <!-- 重新開始按鈕 -->
+            <button id="retry-btn" class="aero-btn text-lg px-8 py-3 w-full">
+                <i class="fa-solid fa-rotate-right mr-2"></i> 再玩一次 (RETRY)
+            </button>
+        </div>
+    </div>
+
+    <!-- 6. 遊戲完整邏輯腳本 (JavaScript) -->
+    <script>
+        /* -------------------------------------------------------------
+           1. 全局變數定義與畫布尺寸動態調整
+           ------------------------------------------------------------- */
+        // 取得背景畫布與渲染上下文
+        const bgCanvas = document.getElementById('bg-canvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        // 取得遊戲打擊圈畫布與渲染上下文
+        const gameCanvas = document.getElementById('game-canvas');
+        const ctx = gameCanvas.getContext('2d');
+
+        // 自動調整 Canvas 畫布解析度適應瀏覽器視窗大小
+        function resizeCanvas() {
+            bgCanvas.width = window.innerWidth;
+            bgCanvas.height = window.innerHeight;
+            gameCanvas.width = window.innerWidth;
+            gameCanvas.height = window.innerHeight;
+        }
+        // 監聽視窗縮放事件
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        /* -------------------------------------------------------------
+           2. Frutiger Aero 動態白天背景系統 (藍天、白雲、水滴氣泡、太陽日光)
+           ------------------------------------------------------------- */
+        // 初始化漂浮白雲數據陣列
+        const clouds = Array.from({ length: 7 }, () => ({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * (window.innerHeight * 0.45),
+            scale: 0.6 + Math.random() * 0.8,
+            speed: 0.2 + Math.random() * 0.4
+        }));
+
+        // 初始化上升水滴氣泡數據陣列
+        const bubbles = Array.from({ length: 25 }, () => ({
+            x: Math.random() * window.innerWidth,
+            y: window.innerHeight + Math.random() * 200,
+            radius: 6 + Math.random() * 18,
+            speed: 0.5 + Math.random() * 1.5,
+            swing: Math.random() * Math.PI * 2,
+            swingSpeed: 0.02 + Math.random() * 0.02
+        }));
+
+        // 渲染 Frutiger Aero 經典風背景
+        function renderBackground() {
+            const w = bgCanvas.width;
+            const h = bgCanvas.height;
+
+            // (1) 繪製清爽的天空線性漸層 (Sky Gradient)
+            const skyGrad = bgCtx.createLinearGradient(0, 0, 0, h);
+            skyGrad.addColorStop(0, '#0284c7');    /* 頂部：蔚藍色 */
+            skyGrad.addColorStop(0.4, '#38bdf8');  /* 中高：天藍色 */
+            skyGrad.addColorStop(0.75, '#bae6fd'); /* 中低：水色淺藍 */
+            skyGrad.addColorStop(1, '#6ee7b7');    /* 底部：生機盎然嫩綠色 */
+            bgCtx.fillStyle = skyGrad;
+            bgCtx.fillRect(0, 0, w, h);
+
+            // (2) 繪製右上角太陽日光發光暈影 (Sun Flare)
+            bgCtx.save();
+            const sunX = w * 0.85;
+            const sunY = h * 0.15;
+            const sunGrad = bgCtx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 350);
+            sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            sunGrad.addColorStop(0.2, 'rgba(254, 240, 138, 0.5)');
+            sunGrad.addColorStop(0.6, 'rgba(56, 189, 248, 0.2)');
+            sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            bgCtx.fillStyle = sunGrad;
+            bgCtx.beginPath();
+            bgCtx.arc(sunX, sunY, 350, 0, Math.PI * 2);
+            bgCtx.fill();
+            bgCtx.restore();
+
+            // (3) 移動並繪製立體微風白雲
+            bgCtx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+            clouds.forEach(c => {
+                c.x += c.speed;
+                // 雲朵走出右邊界後，重置回左側
+                if (c.x - 150 > w) c.x = -150;
+
+                bgCtx.beginPath();
+                bgCtx.arc(c.x, c.y, 35 * c.scale, 0, Math.PI * 2);
+                bgCtx.arc(c.x + 25 * c.scale, c.y - 15 * c.scale, 30 * c.scale, 0, Math.PI * 2);
+                bgCtx.arc(c.x + 50 * c.scale, c.y, 35 * c.scale, 0, Math.PI * 2);
+                bgCtx.arc(c.x + 25 * c.scale, c.y + 10 * c.scale, 25 * c.scale, 0, Math.PI * 2);
+                bgCtx.closePath();
+                bgCtx.fill();
+            });
+
+            // (4) 移動並繪製清亮水滴氣泡 (Glossy Bubbles)
+            bubbles.forEach(b => {
+                b.y -= b.speed;
+                b.swing += b.swingSpeed;
+                const currentX = b.x + Math.sin(b.swing) * 15; // 正弦左右擺盪
+
+                // 氣泡飄出頂部後，從底部重置
+                if (b.y + b.radius < 0) {
+                    b.y = h + 50;
+                    b.x = Math.random() * w;
+                }
+
+                // 氣泡主體立體反射漸層
+                bgCtx.save();
+                bgCtx.beginPath();
+                bgCtx.arc(currentX, b.y, b.radius, 0, Math.PI * 2);
+                const bubbleGrad = bgCtx.createRadialGradient(
+                    currentX - b.radius*0.3, b.y - b.radius*0.3, b.radius*0.1,
+                    currentX, b.y, b.radius
+                );
+                bubbleGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+                bubbleGrad.addColorStop(0.6, 'rgba(186, 230, 253, 0.35)');
+                bubbleGrad.addColorStop(1, 'rgba(56, 189, 248, 0.65)');
+                bgCtx.fillStyle = bubbleGrad;
+                bgCtx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+                bgCtx.lineWidth = 1.2;
+                bgCtx.fill();
+                bgCtx.stroke();
+
+                // 氣泡頂部白色高光弧形點綴
+                bgCtx.beginPath();
+                bgCtx.arc(currentX - b.radius * 0.35, b.y - b.radius * 0.35, b.radius * 0.25, 0, Math.PI * 2);
+                bgCtx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                bgCtx.fill();
+                bgCtx.restore();
+            });
+
+            // 持續進行下一影格背景繪製
+            requestAnimationFrame(renderBackground);
+        }
+        // 啟動背景渲染 loop
+        renderBackground();
+
+        /* -------------------------------------------------------------
+           3. Web Audio API 音效與節奏音樂合成器 (不用載入外部檔案)
+           ------------------------------------------------------------- */
+        let audioCtx = null;
+
+        // 初始化音訊環境 (需使用者互動後觸發)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // 播放打擊判定音效 (300 / 100 / 50 / Miss)
+        function playHitSound(type) {
+            if (!audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 300) {
+                // Perfect 300: 清亮高音 (A5 880Hz -> 1760Hz)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 100) {
+                // Great 100: 中音 (D5 587.33Hz)
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(587.33, now);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } else if (type === 50) {
+                // Good 50: 低調音 (E4 329.63Hz)
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(329.63, now);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'miss') {
+                // Miss 失敗音效: 低頻鋸齒波快速下降
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(60, now + 0.18);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                osc.start(now);
+                osc.stop(now + 0.18);
+            }
+        }
+
+        // 背景動態鼓點節奏音樂合成器
+        let bgMusicTimer = null;
+        function startSynthesizedMusic(bpm) {
+            if (!audioCtx) return;
+            const interval = (60 / bpm) * 1000;
+            let beat = 0;
+
+            bgMusicTimer = setInterval(() => {
+                if (!gameState.isPlaying) return;
+                const now = audioCtx.currentTime;
+                
+                // 每 2 拍觸發一次底鼓 Bass 重音
+                if (beat % 4 === 0 || beat % 4 === 2) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(130, now);
+                    osc.frequency.exponentialRampToValueAtTime(30, now + 0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                }
+
+                // 每一拍播放 Synth 電音清亮調子
+                const melodyNotes = [523.25, 659.25, 783.99, 1046.50];
+                const note = melodyNotes[beat % melodyNotes.length];
+                const oscM = audioCtx.createOscillator();
+                const gainM = audioCtx.createGain();
+                oscM.type = 'sine';
+                oscM.connect(gainM);
+                gainM.connect(audioCtx.destination);
+                oscM.frequency.setValueAtTime(note, now);
+                gainM.gain.setValueAtTime(0.05, now);
+                gainM.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                oscM.start(now);
+                oscM.stop(now + 0.2);
+
+                beat++;
+            }, interval / 2);
+        }
+
+        // 停止背景音樂
+        function stopSynthesizedMusic() {
+            if (bgMusicTimer) clearInterval(bgMusicTimer);
+        }
+
+        /* -------------------------------------------------------------
+           4. 遊戲狀態與 Hit Circle (打擊圈) 數據結構
+           ------------------------------------------------------------- */
+        const gameState = {
+            isPlaying: false,
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            hp: 100,
+            hits300: 0,
+            hits100: 0,
+            hits50: 0,
+            misses: 0,
+            totalNotes: 0,
+            processedNotes: 0,
+            startTime: 0,
+            songBpm: 120
+        };
+
+        let hitCircles = [];    // 打擊圈陣列
+        let hitParticles = [];  // 打擊文字特效粒子
+
+        const CIRCLE_RADIUS = 50;   // 打擊圈核心半徑
+        const APPROACH_TIME = 1000; // 外圍圈縮放淡入所需時間 (毫秒 ms)
+
+        /* -------------------------------------------------------------
+           5. 關卡圖譜生成演算法 (Beatmap Generator)
+           ------------------------------------------------------------- */
+        function generateBeatmap(bpm) {
+            hitCircles = [];
+            // 依據選擇難易度 (BPM) 決定音符數量
+            const noteCount = bpm === 120 ? 35 : (bpm === 140 ? 50 : 70);
+            const interval = (60 / bpm) * 1000;
+            const margin = 120; // 避免圓圈出現在畫面邊緣
+
+            const width = gameCanvas.width - margin * 2;
+            const height = gameCanvas.height - margin * 2;
+
+            let lastX = width / 2;
+            let lastY = height / 2;
+
+            for (let i = 0; i < noteCount; i++) {
+                // 隨機流暢位置演算法 (以上一圈為基準延伸距離)
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 100 + Math.random() * 180;
+                let x = lastX + Math.cos(angle) * dist;
+                let y = lastY + Math.sin(angle) * dist;
+
+                // 防溢出邊界校正
+                x = Math.max(margin, Math.min(gameCanvas.width - margin, x));
+                y = Math.max(margin, Math.min(gameCanvas.height - margin, y));
+
+                lastX = x;
+                lastY = y;
+
+                hitCircles.push({
+                    id: i + 1,       // 音符顯示編號
+                    x: x,            // X 座標
+                    y: y,            // Y 座標
+                    time: 1500 + i * interval, // 預計打擊時間點
+                    hit: false,      // 是否已擊中
+                    missed: false    // 是否已失誤
+                });
+            }
+
+            gameState.totalNotes = noteCount;
+        }
+
+        /* -------------------------------------------------------------
+           6. 遊戲核心主循環 (Game Loop) & 畫布渲染邏輯
+           ------------------------------------------------------------- */
+        let animFrameId = null;
+
+        function updateAndRenderGame() {
+            if (!gameState.isPlaying) return;
+
+            // 清空打擊畫布
+            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            // 計算遊戲已進行時間 (毫秒)
+            const currentTime = performance.now() - gameState.startTime;
+
+            // 遊戲時間演進中自然扣除少許血量 (HP Drain)
+            gameState.hp -= 0.03;
+            if (gameState.hp <= 0) {
+                gameState.hp = 0;
+                endGame(); // HP 耗盡，宣告結束
+                return;
+            }
+            updateHUD();
+
+            // 遍歷所有打擊圈進行渲染與狀態判定
+            hitCircles.forEach(circle => {
+                if (circle.hit || circle.missed) return;
+
+                const timeDiff = circle.time - currentTime;
+
+                // 1. 逾時判定 (超過打擊窗口 180ms 即算 Miss)
+                if (timeDiff < -180) {
+                    circle.missed = true;
+                    registerHit('miss', circle.x, circle.y);
+                    return;
+                }
+
+                // 2. 當音符進入可顯示的時間窗 (Approach Window)
+                if (timeDiff <= APPROACH_TIME) {
+                    const progress = Math.max(0, timeDiff / APPROACH_TIME); // 進度條：1 -> 0
+                    const approachRadius = CIRCLE_RADIUS + progress * (CIRCLE_RADIUS * 1.5); // 外圈隨時間收縮
+
+                    // --- (A) 繪製外圍收縮圈 (Approach Circle) ---
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(circle.x, circle.y, approachRadius, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + (1 - progress) * 0.6})`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // --- (B) 繪製 Frutiger Aero 水晶玻璃打擊氣泡主體 (Hit Circle) ---
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(circle.x, circle.y, CIRCLE_RADIUS, 0, Math.PI * 2);
+
+                    // 多層次放射漸層 (塑造水藍水晶凸體感)
+                    const circleGrad = ctx.createRadialGradient(
+                        circle.x - 15, circle.y - 15, 5,
+                        circle.x, circle.y, CIRCLE_RADIUS
+                    );
+                    circleGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+                    circleGrad.addColorStop(0.4, 'rgba(56, 189, 248, 0.85)');
+                    circleGrad.addColorStop(0.85, 'rgba(2, 132, 199, 0.9)');
+                    circleGrad.addColorStop(1, 'rgba(255, 255, 255, 0.95)');
+
+                    ctx.fillStyle = circleGrad;
+                    ctx.shadowColor = 'rgba(0, 80, 160, 0.5)';
+                    ctx.shadowBlur = 15;
+                    ctx.fill();
+
+                    // 白色光亮邊框
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    // 繪製音符內部序號
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 24px "Segoe UI", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = 'rgba(0, 40, 80, 0.8)';
+                    ctx.shadowBlur = 4;
+                    ctx.fillText(circle.id, circle.x, circle.y);
+
+                    ctx.restore();
+                }
+            });
+
+            // 繪製與更新打擊得分文字動畫顆粒 (Hit Particles)
+            hitParticles.forEach((p, idx) => {
+                p.y -= 1;        // 文字緩慢上升
+                p.alpha -= 0.025; // 漸淡消失
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.font = 'black 26px "Segoe UI", sans-serif';
+                ctx.fillStyle = p.color;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 6;
+                ctx.fillText(p.text, p.x, p.y);
+                ctx.restore();
+
+                // 移除透明度為零的粒子
+                if (p.alpha <= 0) hitParticles.splice(idx, 1);
+            });
+
+            // 檢查所有音符是否皆已處理完畢
+            if (gameState.processedNotes >= gameState.totalNotes) {
+                setTimeout(endGame, 600);
+                return;
+            }
+
+            // 請求下一次繪製影格
+            animFrameId = requestAnimationFrame(updateAndRenderGame);
+        }
+
+        /* -------------------------------------------------------------
+           7. 打擊判定演算法 (Hit Timing & Score Calculation)
+           ------------------------------------------------------------- */
+        function checkHit(clickX, clickY) {
+            if (!gameState.isPlaying) return;
+
+            const currentTime = performance.now() - gameState.startTime;
+
+            // 尋找距離擊打位置最近且在時間窗口內的打擊圈
+            const targetCircle = hitCircles.find(c => {
+                if (c.hit || c.missed) return false;
+                const dist = Math.hypot(c.x - clickX, c.y - clickY);
+                const timeDiff = Math.abs(c.time - currentTime);
+                return dist <= CIRCLE_RADIUS * 1.2 && timeDiff <= 200;
+            });
+
+            if (targetCircle) {
+                targetCircle.hit = true;
+                const timeDiff = Math.abs(targetCircle.time - currentTime);
+
+                // 精確時間判定分級 (300 / 100 / 50)
+                if (timeDiff <= 50) {
+                    registerHit(300, targetCircle.x, targetCircle.y);
+                } else if (timeDiff <= 110) {
+                    registerHit(100, targetCircle.x, targetCircle.y);
+                } else {
+                    registerHit(50, targetCircle.x, targetCircle.y);
+                }
+            }
+        }
+
+        // 註冊與累加擊打成績
+        function registerHit(type, x, y) {
+            gameState.processedNotes++;
+
+            if (type === 300) {
+                gameState.score += 300 + gameState.combo * 10;
+                gameState.combo++;
+                gameState.hits300++;
+                gameState.hp = Math.min(100, gameState.hp + 6); // 增加血量
+                playHitSound(300);
+                spawnParticle('300', '#34d399', x, y);
+            } else if (type === 100) {
+                gameState.score += 100 + gameState.combo * 5;
+                gameState.combo++;
+                gameState.hits100++;
+                gameState.hp = Math.min(100, gameState.hp + 3);
+                playHitSound(100);
+                spawnParticle('100', '#38bdf8', x, y);
+            } else if (type === 50) {
+                gameState.score += 50;
+                gameState.combo++;
+                gameState.hits50++;
+                playHitSound(50);
+                spawnParticle('50', '#facc15', x, y);
+            } else if (type === 'miss') {
+                gameState.combo = 0; // Combo 歸零
+                gameState.misses++;
+                gameState.hp -= 12;  // 大幅扣除血量
+                playHitSound('miss');
+                spawnParticle('MISS', '#f87171', x, y);
+            }
+
+            // 更新最高連擊數
+            if (gameState.combo > gameState.maxCombo) {
+                gameState.maxCombo = gameState.combo;
+            }
+
+            updateHUD();
+        }
+
+        // 產生打擊視覺文字粒子
+        function spawnParticle(text, color, x, y) {
+            hitParticles.push({ text, color, x, y, alpha: 1.0 });
+        }
+
+        /* -------------------------------------------------------------
+           8. HUD 介面數據即時刷新
+           ------------------------------------------------------------- */
+        function updateHUD() {
+            // 更新血條長度
+            document.getElementById('hp-bar').style.width = `${Math.max(0, gameState.hp)}%`;
+            // 更新分數顯示 (7 位數補零)
+            document.getElementById('score-text').innerText = String(gameState.score).padStart(7, '0');
+
+            // 計算當前精準度百分比 (Accuracy)
+            const totalHits = gameState.hits300 + gameState.hits100 + gameState.hits50 + gameState.misses;
+            let accuracy = 100.0;
+            if (totalHits > 0) {
+                const weighted = (gameState.hits300 * 300 + gameState.hits100 * 100 + gameState.hits50 * 50) / (totalHits * 300);
+                accuracy = weighted * 100;
+            }
+            document.getElementById('acc-text').innerText = `${accuracy.toFixed(2)}%`;
+
+            // 更新 Combo 連撃提示
+            const comboEl = document.getElementById('combo-text');
+            comboEl.innerText = `${gameState.combo}x`;
+            document.getElementById('combo-container').style.opacity = gameState.combo > 0 ? '1' : '0';
+        }
+
+        /* -------------------------------------------------------------
+           9. 鍵盤與滑鼠互動事件監聽 (Z / X 鍵與點擊支援)
+           ------------------------------------------------------------- */
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // 追蹤滑鼠當前游標位置
+        gameCanvas.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        // 滑鼠左鍵點擊打擊
+        gameCanvas.addEventListener('mousedown', (e) => {
+            checkHit(e.clientX, e.clientY);
+        });
+
+        // 支援雙鍵 Z / X 按鍵打擊
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat || !gameState.isPlaying) return;
+
+            if (e.key === 'z' || e.key === 'Z') {
+                triggerKeyVisual('key-z');
+                checkHit(mouseX, mouseY);
+            } else if (e.key === 'x' || e.key === 'X') {
+                triggerKeyVisual('key-x');
+                checkHit(mouseX, mouseY);
+            }
+        });
+
+        // 觸發 UI 鍵盤按下反饋效果
+        function triggerKeyVisual(id) {
+            const el = document.getElementById(id);
+            el.classList.add('bg-white/60', 'scale-95');
+            setTimeout(() => el.classList.remove('bg-white/60', 'scale-95'), 80);
+        }
+
+        /* -------------------------------------------------------------
+           10. 遊戲流程控制 (開始遊戲、遊戲結束、重試機制)
+           ------------------------------------------------------------- */
+        const startMenu = document.getElementById('start-menu');
+        const resultMenu = document.getElementById('result-menu');
+        const hud = document.getElementById('hud');
+        const keyIndicators = document.getElementById('key-indicators');
+
+        // 綁定按鈕點擊事件
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('retry-btn').addEventListener('click', restartGame);
+
+        // 開始遊戲邏輯
+        function startGame() {
+            initAudio(); // 初始化音訊環境
+
+            // 讀取歌曲選單選取的難易度 (BPM)
+            const songSelect = document.getElementById('song-select').value;
+            gameState.songBpm = songSelect === 'breezy' ? 120 : (songSelect === 'cyber' ? 140 : 175);
+
+            // 清空並重置遊戲狀態數據
+            gameState.isPlaying = true;
+            gameState.score = 0;
+            gameState.combo = 0;
+            gameState.maxCombo = 0;
+            gameState.hp = 100;
+            gameState.hits300 = 0;
+            gameState.hits100 = 0;
+            gameState.hits50 = 0;
+            gameState.misses = 0;
+            gameState.processedNotes = 0;
+            gameState.startTime = performance.now();
+
+            // 生成譜面與開始合成背景樂曲
+            generateBeatmap(gameState.songBpm);
+            startSynthesizedMusic(gameState.songBpm);
+
+            // 切換 UI 面板顯示
+            startMenu.classList.add('hidden');
+            resultMenu.classList.add('hidden');
+            hud.classList.remove('opacity-0');
+            keyIndicators.classList.remove('opacity-0');
+
+            // 啟動主畫布渲染 Loop
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+            updateAndRenderGame();
+        }
+
+        // 結束遊戲 logic
+        function endGame() {
+            gameState.isPlaying = false;
+            stopSynthesizedMusic(); // 停止音樂
+
+            // 計算總成績評級 (Rank)
+            const totalHits = gameState.hits300 + gameState.hits100 + gameState.hits50 + gameState.misses;
+            const accuracy = totalHits > 0 ? ((gameState.hits300 * 300 + gameState.hits100 * 100 + gameState.hits50 * 50) / (totalHits * 300)) * 100 : 0;
+
+            let rank = 'F';
+            let rankColor = 'text-red-400';
+            if (gameState.hp > 0) {
+                if (accuracy >= 95) { rank = 'S'; rankColor = 'text-yellow-300'; }
+                else if (accuracy >= 88) { rank = 'A'; rankColor = 'text-emerald-300'; }
+                else if (accuracy >= 80) { rank = 'B'; rankColor = 'text-sky-300'; }
+                else { rank = 'C'; rankColor = 'text-purple-300'; }
+            }
+
+            // 更新成績結算視窗數據
+            const rankEl = document.getElementById('rank-display');
+            rankEl.innerText = rank;
+            rankEl.className = `text-8xl font-black drop-shadow-[0_10px_20px_rgba(0,100,200,0.5)] my-2 ${rankColor}`;
+
+            document.getElementById('res-score').innerText = gameState.score;
+            document.getElementById('res-acc').innerText = `${accuracy.toFixed(2)}%`;
+            document.getElementById('res-combo').innerText = `${gameState.maxCombo}x`;
+            document.getElementById('res-300').innerText = gameState.hits300;
+            document.getElementById('res-100').innerText = gameState.hits100;
+            document.getElementById('res-miss').innerText = gameState.misses;
+
+            // 切換介面顯示
+            hud.classList.add('opacity-0');
+            keyIndicators.classList.add('opacity-0');
+            document.getElementById('combo-container').style.opacity = '0';
+            resultMenu.classList.remove('hidden');
+        }
+
+        // 重新返回選單
+        function restartGame() {
+            resultMenu.classList.add('hidden');
+            startMenu.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
